@@ -1,12 +1,14 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:appdemo/find_bluetooth_devices.dart';
+import 'package:remote_switch/find_bluetooth_devices.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  var status = await Permission.bluetooth.status;
+  if (!status.isGranted) {
+    await Permission.bluetooth.request();
+  }
   runApp(const MyApp());
 }
 
@@ -19,15 +21,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
         primarySwatch: Colors.blueGrey,
       ),
       home: const MyHomePage(title: '我就懶得去關燈'),
@@ -46,34 +39,17 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   BluetoothDevice? _device;
-  BluetoothConnection? connection;
 
+  FlutterBluePlus? flutterBlue;
   @override
   void initState() {
     super.initState();
-    Timer.periodic(const Duration(seconds: 5), (timer) async {
-      if (_device != null) {
-        BluetoothConnection.toAddress(_device?.address).then((_connection) {
-          connection = _connection;
-        }).catchError((error) {
-          print('Cannot connect, exception occured');
-          print(error);
-        });
-      }
-    });
-  }
-
-  void _sendMessage(String text) async {
-    text = text.trim();
-    if (text.length > 0) {
-      try {
-        connection!.output.add(Uint8List.fromList(utf8.encode(text + "\r\n")));
-        await connection!.output.allSent;
-      } catch (e) {
-        // Ignore error, but notify state
-        setState(() {});
-      }
-    }
+    flutterBlue = FlutterBluePlus.instance;
+    // Timer.periodic(const Duration(seconds: 15), (timer) async {
+    //   if (_device != null) {
+    //     await _device?.connect();
+    //   }
+    // });
   }
 
   @override
@@ -84,6 +60,21 @@ class _MyHomePageState extends State<MyHomePage> {
           onPressed: () async {
             // open drawer
             _device = await Navigator.push(context, MaterialPageRoute(builder: (context) => const DiscoveryPage()));
+            if (_device != null) {
+              _device?.state.listen((event) {
+                switch (event) {
+                  case BluetoothDeviceState.connected:
+                    break;
+                  case BluetoothDeviceState.connecting:
+                    break;
+                  case BluetoothDeviceState.disconnected:
+                    _device?.connect();
+                    break;
+                  case BluetoothDeviceState.disconnecting:
+                    break;
+                }
+              });
+            }
           },
           icon: const Icon(Icons.bluetooth),
           tooltip: 'bluetooth',
@@ -105,7 +96,19 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
                 onPressed: () {
-                  _sendMessage('n');
+                  // _sendMessage('n');
+                  flutterBlue?.connectedDevices.then((value) async {
+                    if (value.isNotEmpty) {
+                      _device = value.first;
+                      List<BluetoothService>? services = await _device?.discoverServices();
+                      services?.forEach((element) {
+                        for (var element in element.characteristics) {
+                          element.write([0x6e]);
+                        }
+                      });
+                      // _sendMessage('n');
+                    } else {}
+                  });
                 },
                 child: const Text('開燈', style: TextStyle(fontSize: 100)),
               ),
@@ -114,7 +117,21 @@ class _MyHomePageState extends State<MyHomePage> {
               padding: const EdgeInsets.all(50.0),
               child: ElevatedButton(
                 onPressed: () {
-                  _sendMessage('f');
+                  // This code is used to connect to the device and send a message to it.
+
+                  // _sendMessage('n');
+                  flutterBlue?.connectedDevices.then((value) async {
+                    if (value.isNotEmpty) {
+                      _device = value.first;
+                      List<BluetoothService>? services = await _device?.discoverServices();
+                      services?.forEach((element) {
+                        for (var element in element.characteristics) {
+                          element.write([0x66]);
+                        }
+                      });
+                      // _sendMessage('n');
+                    } else {}
+                  });
                 },
                 child: const Text('關燈', style: TextStyle(fontSize: 100)),
               ),

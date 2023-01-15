@@ -1,4 +1,4 @@
-package com.example.appdemo
+package com.airlab.remote_switch
 
 import io.flutter.embedding.android.FlutterActivity
 

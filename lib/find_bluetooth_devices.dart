@@ -1,34 +1,30 @@
 import 'dart:async';
 
-import 'package:appdemo/bluetooth_device_list_entry.dart';
+import 'package:remote_switch/bluetooth_device_list_entry.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class DiscoveryPage extends StatefulWidget {
   /// If true, discovery starts on page start, otherwise user must press action button.
   final bool start;
 
-  const DiscoveryPage({this.start = true});
+  const DiscoveryPage({Key? key, this.start = true}) : super(key: key);
 
   @override
-  _DiscoveryPage createState() => new _DiscoveryPage();
+  State<DiscoveryPage> createState() => _DiscoveryPage();
 }
 
 class _DiscoveryPage extends State<DiscoveryPage> {
-  StreamSubscription<BluetoothDiscoveryResult>? _streamSubscription;
-  List<BluetoothDiscoveryResult> results = List<BluetoothDiscoveryResult>.empty(growable: true);
+  List<ScanResult> results = [];
+  StreamSubscription? _streamSubscription;
   bool isDiscovering = false;
-
-  _DiscoveryPage();
+  late FlutterBluePlus flutterBlue;
 
   @override
   void initState() {
     super.initState();
-
-    isDiscovering = widget.start;
-    if (isDiscovering) {
-      _startDiscovery();
-    }
+    flutterBlue = FlutterBluePlus.instance;
+    _startDiscovery();
   }
 
   void _restartDiscovery() {
@@ -41,13 +37,22 @@ class _DiscoveryPage extends State<DiscoveryPage> {
   }
 
   void _startDiscovery() {
-    _streamSubscription = FlutterBluetoothSerial.instance.startDiscovery().listen((r) {
+    // Start scanning
+    flutterBlue.startScan(timeout: const Duration(seconds: 4));
+
+    // Listen to scan results
+    _streamSubscription = flutterBlue.scanResults.listen((resultsTemp) {
+      // do something with scan results
       setState(() {
-        final existingIndex = results.indexWhere((element) => element.device.address == r.device.address);
-        if (existingIndex >= 0)
-          results[existingIndex] = r;
-        else
-          results.add(r);
+        for (var r in resultsTemp) {
+          if (r.device.name == '') continue;
+          final existingIndex = results.indexWhere((element) => element.device.id == r.device.id);
+          if (existingIndex >= 0) {
+            results[existingIndex] = r;
+          } else {
+            results.add(r);
+          }
+        }
       });
     });
 
@@ -55,36 +60,37 @@ class _DiscoveryPage extends State<DiscoveryPage> {
       setState(() {
         isDiscovering = false;
       });
+      // Stop scanning
     });
+    flutterBlue.stopScan();
   }
 
   // @TODO . One day there should be `_pairDevice` on long tap on something... ;)
 
   @override
   void dispose() {
+    super.dispose();
     // Avoid memory leak (`setState` after dispose) and cancel discovery
     _streamSubscription?.cancel();
-
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: isDiscovering ? Text('Discovering devices') : Text('Discovered devices'),
+        title: isDiscovering ? const Text('Discovering devices') : const Text('Discovered devices'),
         actions: <Widget>[
           isDiscovering
               ? FittedBox(
                   child: Container(
-                    margin: new EdgeInsets.all(16.0),
-                    child: CircularProgressIndicator(
+                    margin: const EdgeInsets.all(16.0),
+                    child: const CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   ),
                 )
               : IconButton(
-                  icon: Icon(Icons.replay),
+                  icon: const Icon(Icons.replay),
                   onPressed: _restartDiscovery,
                 )
         ],
@@ -92,56 +98,13 @@ class _DiscoveryPage extends State<DiscoveryPage> {
       body: ListView.builder(
         itemCount: results.length,
         itemBuilder: (BuildContext context, index) {
-          BluetoothDiscoveryResult result = results[index];
+          ScanResult result = results[index];
           final device = result.device;
-          final address = device.address;
           return BluetoothDeviceListEntry(
             device: device,
             rssi: result.rssi,
             onTap: () {
               Navigator.of(context).pop(result.device);
-            },
-            onLongPress: () async {
-              try {
-                bool bonded = false;
-                if (device.isBonded) {
-                  print('Unbonding from ${device.address}...');
-                  await FlutterBluetoothSerial.instance.removeDeviceBondWithAddress(address);
-                  print('Unbonding from ${device.address} has succed');
-                } else {
-                  print('Bonding with ${device.address}...');
-                  bonded = (await FlutterBluetoothSerial.instance.bondDeviceAtAddress(address))!;
-                  print('Bonding with ${device.address} has ${bonded ? 'succed' : 'failed'}.');
-                }
-                setState(() {
-                  results[results.indexOf(result)] = BluetoothDiscoveryResult(
-                      device: BluetoothDevice(
-                        name: device.name ?? '',
-                        address: address,
-                        type: device.type,
-                        bondState: bonded ? BluetoothBondState.bonded : BluetoothBondState.none,
-                      ),
-                      rssi: result.rssi);
-                });
-              } catch (ex) {
-                showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: const Text('Error occured while bonding'),
-                      content: Text("${ex.toString()}"),
-                      actions: <Widget>[
-                        new TextButton(
-                          child: new Text("Close"),
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                        ),
-                      ],
-                    );
-                  },
-                );
-              }
             },
           );
         },

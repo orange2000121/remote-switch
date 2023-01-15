@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "appdemo" "\0"
+            VALUE "FileDescription", "remote_switch" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "appdemo" "\0"
+            VALUE "InternalName", "remote_switch" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2022 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "appdemo.exe" "\0"
-            VALUE "ProductName", "appdemo" "\0"
+            VALUE "OriginalFilename", "remote_switch.exe" "\0"
+            VALUE "ProductName", "remote_switch" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
